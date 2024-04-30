@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getLatestAnimes, getLatestEpisodes, getAllAnimes, getFeaturedAnime, getTopAnime, getAnimesByGenre, getAnimesByLetter, getAnimesBySearch, getAnimeDetails } from "./logic.js";
+import { getLatestAnimes, getLatestEpisodes, getAllAnimes, getFeaturedAnime, getTopAnime, getAnimesByGenre, getAnimesByLetter, getAnimesBySearch, getAnimeDetails, getEpisodeVideos } from "./logic.js";
 
 const logicRoutes = Router();
 
@@ -20,5 +20,7 @@ logicRoutes.get("/animes-l/:letter", getAnimesByLetter);
 logicRoutes.get("/animes-s/:search", getAnimesBySearch);
 
 logicRoutes.get("/anime/:id", getAnimeDetails);
+
+logicRoutes.get("/episode/:id", getEpisodeVideos);
 
 export default logicRoutes;

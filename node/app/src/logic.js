@@ -375,3 +375,84 @@ const fetchAnimeEpisodes = async (internal_id) => {
 
   return episodes;
 };
+
+export const getEpisodeVideos = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const animeId = req.params.id;
+    const episodeNumber = req.query.episode;
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto(`https://jkanime.net/${animeId}/${episodeNumber}`);
+
+    const chapter_id = await page.evaluate(() => {
+      const internal_id = document.querySelector("div#guardar-capitulo").getAttribute("data-capitulo");
+
+      return { internal_id };
+    })
+
+    const episodeVideos = await page.$$eval("script", async elements => {
+      const regex = /<iframe class="player_conte"[\s\S]*?<\/iframe>/g;
+      const matches = [];
+      elements.forEach(element => {
+        const html = element.innerHTML;
+        const iframeMatches = html.match(regex);
+        if (iframeMatches) {
+          matches.push(...iframeMatches);
+        }
+      });
+
+      const filteredMatches = matches.filter(match => !match.includes("/c1.php"));
+
+      const videoFinder = async (url) => {
+        const response = await fetch(url);
+        const pageContent = await response.text();
+
+        const regex = /https?:\/\/[^\s/$.?#].[^\s]*/gm;
+        const matches = pageContent.match(regex);
+        const videoUrls = matches.filter(url => url.endsWith('.m3u8'));
+
+        if (videoUrls.length === 0) {
+          const mp4Matches = pageContent.match(/video:\s*{\s*url:\s*'https:\/\/jkanime\.net\/stream\/jkmedia\/[^']*'/g);
+          if (mp4Matches) {
+            const mp4Url = mp4Matches[0].match(/'([^']+)'/)[1];
+            return mp4Url;
+          }
+        }
+        return videoUrls[0] || null;
+      };
+
+      const videoObjects = await Promise.all(filteredMatches.map(async match => {
+        const src = match.match(/src="(.*?)"/)[1];
+        const video = await videoFinder(`https://jkanime.net${src}`) || `https://jkanime.net${src}`;
+        return { video };
+      }));
+
+
+      return videoObjects;
+    });
+
+    const response = await fetch(`https://c1.jkplayers.com/servers/${chapter_id.internal_id}.js`)
+      .then(res => res.text())
+      .then(text => JSON.parse(text.match(/\[(.*?)\]/)[0]));
+
+    const videoObjects = response.map(obj => ({ video: `https://jkanime.net/c1.php?u=${obj.remote}` }));
+
+    const episodeVideosWithUrls = [...episodeVideos, ...videoObjects];
+
+    res.json(episodeVideosWithUrls);
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los videos del episodio' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
