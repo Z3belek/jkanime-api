@@ -113,3 +113,39 @@ export const getFeaturedAnime = async (req, res) => {
     }
   }
 };
+
+export const getLatestEpisodes = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto("https://jkanime.net/");
+
+    const latestEpisodes = await page.evaluate(() => {
+      const episodes = Array.from(document.querySelectorAll(".anime_programing .bloqq"));
+      return episodes.map(episode => {
+        const title = episode.querySelector("h5").textContent;
+        const id = episode.href.split("/").slice(3).join("/").replace(/\/$/, "");
+        const poster = episode.querySelector("img").src;
+        const episode_id = episode.querySelector("h6").textContent.trim().replace(/\s+/g, " ");
+        const episode_release = episode.querySelector("span").textContent.trim().replace(/\s+/g, " ");
+        return { title, id, poster, episode_id, episode_release };
+      });
+    });
+
+    res.json(latestEpisodes);
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los últimos episodios' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
