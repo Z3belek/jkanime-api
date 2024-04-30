@@ -149,3 +149,42 @@ export const getLatestEpisodes = async (req, res) => {
     }
   }
 }
+
+export const getAnimesByGenre = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const genre = req.params.genre;
+    const pageNumber = req.query.page || 1;
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto(`https://jkanime.net/genero/${genre}/${pageNumber}`);
+
+    const { data: animeList, morePages } = await page.evaluate(() => {
+      const animeItems = Array.from(document.querySelectorAll(".page_directorio .col-lg-2.col-md-6.col-sm-6"));
+      const nextPage = document.querySelector("div.navigation a.nav-next");
+
+      const data = animeItems.map(anime => ({
+        title: anime.querySelector("h5 a").textContent,
+        id: anime.querySelector("a").href.split("/")[3],
+        poster: anime.querySelector("div.anime__item__pic").getAttribute("data-setbg"),
+      }));
+
+      return { data, morePages: nextPage ? true : false };
+    });
+
+    res.json({ animeList, morePages });
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los animes' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
