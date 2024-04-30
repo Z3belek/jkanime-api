@@ -173,9 +173,9 @@ export const getTopAnime = async (req, res) => {
       });
     });
 
-    const uniqueFeaturedAnime = [...new Map(topAnime.map(anime => [anime.id, anime])).values()];
+    const uniqueTopAnime = [...new Map(topAnime.map(anime => [anime.id, anime])).values()];
 
-    res.json(uniqueFeaturedAnime);
+    res.json(uniqueTopAnime);
   }
   catch (error) {
     console.log(error);
@@ -264,4 +264,114 @@ export const getAnimesByLetter = async (req, res) => {
       await browser.close();
     }
   }
+};
+
+export const getAnimesBySearch = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const search = req.params.search;
+    const pageNumber = req.query.page || 1;
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto(`https://jkanime.net/buscar/${search}/${pageNumber}`);
+
+    const { data: animeList, morePages } = await page.evaluate(() => {
+      const animeItems = Array.from(document.querySelectorAll(".anime__page__content .col-lg-2.col-md-6.col-sm-6"));
+      const nextPage = document.querySelector("div.navigation a.nav-next");
+
+      const data = animeItems.map(anime => ({
+        title: anime.querySelector("h5 a").textContent,
+        id: anime.querySelector("a").href.split("/")[3],
+        poster: anime.querySelector("div.anime__item__pic").getAttribute("data-setbg")
+      }));
+
+      return { data, morePages: nextPage ? true : false };
+    });
+
+    res.json({ animeList, morePages });
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los animes' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
+
+export const getAnimeDetails = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const animeId = req.params.id;
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto(`https://jkanime.net/${animeId}`);
+
+    const animeDetails = await page.evaluate(() => {
+      const title = document.querySelector("div.anime__details__title h3").textContent;
+      const poster = document.querySelector("div.anime__details__pic").getAttribute("data-setbg");
+      const synopsis = document.querySelector("div.anime__details__text p.sinopsis").textContent.trim().replace(/\s+/g, " ");
+      const internal_id = document.querySelector("div.anime__details__title div#guardar-anime").getAttribute("data-anime");
+
+      return { title, poster, synopsis, internal_id };
+    });
+
+    const episodes = await fetchAnimeEpisodes(animeDetails.internal_id);
+
+    res.json({ ...animeDetails, episodes });
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los detalles del anime' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
+
+const fetchAnimeEpisodes = async (internal_id) => {
+  const episodes = [];
+  let episodesPage = 1;
+
+  while (true) {
+    const episodesResponse = await fetch(`https://jkanime.net/ajax/pagination_episodes/${internal_id}/${episodesPage}`);
+
+    if (!episodesResponse.ok) {
+      throw new Error("No se pudo obtener los episodios");
+    }
+
+    const episodesData = await episodesResponse.json();
+
+    if (episodesData.length === 0) {
+      break;
+    }
+
+    episodesData.forEach(episode => {
+      episodes.push({
+        id: episode.number,
+        title: episode.title,
+        preview: `https://cdn.jkdesu.com/assets/images/animes/video/image_thumb/${episode.image}`
+      });
+    });
+
+    if (episodesData.length < 11) {
+      break;
+    }
+
+    episodesPage++;
+  }
+
+  return episodes;
 };
