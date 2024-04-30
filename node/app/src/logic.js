@@ -151,6 +151,43 @@ export const getFeaturedAnime = async (req, res) => {
   }
 };
 
+export const getTopAnime = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto("https://jkanime.net/ranking");
+
+    const topAnime = await page.evaluate(() => {
+      const animeItems = Array.from(document.querySelectorAll(".page_mirando .col-lg-2.col-md-6.col-sm-6"));
+      return animeItems.map(anime => {
+        const title = anime.querySelector("h5 a").textContent.trim();
+        const id = anime.querySelector("a").href.split("/")[3];
+        const poster = anime.querySelector("div.anime__item__pic").dataset.dataSetbg
+
+        return { title, id, poster };
+      });
+    });
+
+    const uniqueFeaturedAnime = [...new Map(topAnime.map(anime => [anime.id, anime])).values()];
+
+    res.json(uniqueFeaturedAnime);
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener el top de animes' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
+
 export const getAnimesByGenre = async (req, res) => {
   const browser = await puppeteer.launch({
     headless: 'new',
