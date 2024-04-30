@@ -23,13 +23,16 @@ export const getLatestAnimes = async (req, res) => {
       });
     });
 
-    await browser.close();
-
     res.json(latestAnimes);
   }
   catch (error) {
     console.log(error);
     res.status(500).json({ error: 'Hubo un error al obtener los animes más recientes' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 };
 
@@ -61,12 +64,52 @@ export const getAllAnimes = async (req, res) => {
       return { data, morePages: nextPage ? true : false };
     });
 
-    await browser.close();
-
     res.json({ animeList, morePages });
   }
   catch (error) {
     console.log(error);
     res.status(500).json({ error: 'Hubo un error al obtener los animes' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
+
+export const getFeaturedAnime = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto("https://jkanime.net/");
+
+    const featuredAnime = await page.evaluate(() => {
+      const animeItems = Array.from(document.querySelectorAll(".owl-carousel .hero__items"));
+      return animeItems.map(anime => {
+        const title = anime.querySelector("div.hero__text h2").textContent.trim();
+        const id = anime.querySelector("a").href.split("/")[3];
+        const poster = anime.dataset.setbg;
+
+        return { title, id, poster };
+      });
+    });
+
+    const uniqueFeaturedAnime = [...new Map(featuredAnime.map(anime => [anime.id, anime])).values()];
+
+    res.json(uniqueFeaturedAnime);
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener el anime destacado' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 };
