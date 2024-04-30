@@ -1,0 +1,37 @@
+{
+  "name": "jkanime-api",
+  "version": "1.0.0",
+  "description": "JKAnime API, using Express and Puppeteer",
+  "main": "app/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "nodemon app/index.js",
+    "start": "node app/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Z3belek/jkanime-api.git"
+  },
+  "keywords": [
+    "jkanime",
+    "api",
+    "anime",
+    "puppeteer",
+    "node",
+    "express",
+    "javascript"
+  ],
+  "author": "Z3belek",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Z3belek/jkanime-api/issues"
+  },
+  "homepage": "https://github.com/Z3belek/jkanime-api#readme",
+  "dependencies": {
+    "express": "4.19.2",
+    "puppeteer": "22.7.1"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.0"
+  }
+}
