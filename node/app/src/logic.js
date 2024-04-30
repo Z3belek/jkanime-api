@@ -36,6 +36,43 @@ export const getLatestAnimes = async (req, res) => {
   }
 };
 
+export const getLatestEpisodes = async (req, res) => {
+
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto("https://jkanime.net/");
+
+    const latestEpisodes = await page.evaluate(() => {
+      const episodes = Array.from(document.querySelectorAll(".anime_programing .bloqq"));
+      return episodes.map(episode => {
+        const title = episode.querySelector("h5").textContent;
+        const id = episode.href.split("/").slice(3).join("/").replace(/\/$/, "");
+        const poster = episode.querySelector("img").src;
+        const episode_id = episode.querySelector("h6").textContent.trim().replace(/\s+/g, " ");
+        const episode_release = episode.querySelector("span").textContent.trim().replace(/\s+/g, " ");
+        return { title, id, poster, episode_id, episode_release };
+      });
+    });
+
+    res.json(latestEpisodes);
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los últimos episodios' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
+
 export const getAllAnimes = async (req, res) => {
   const browser = await puppeteer.launch({
     headless: 'new',
@@ -114,42 +151,6 @@ export const getFeaturedAnime = async (req, res) => {
   }
 };
 
-export const getLatestEpisodes = async (req, res) => {
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
-
-    await page.goto("https://jkanime.net/");
-
-    const latestEpisodes = await page.evaluate(() => {
-      const episodes = Array.from(document.querySelectorAll(".anime_programing .bloqq"));
-      return episodes.map(episode => {
-        const title = episode.querySelector("h5").textContent;
-        const id = episode.href.split("/").slice(3).join("/").replace(/\/$/, "");
-        const poster = episode.querySelector("img").src;
-        const episode_id = episode.querySelector("h6").textContent.trim().replace(/\s+/g, " ");
-        const episode_release = episode.querySelector("span").textContent.trim().replace(/\s+/g, " ");
-        return { title, id, poster, episode_id, episode_release };
-      });
-    });
-
-    res.json(latestEpisodes);
-  }
-  catch (error) {
-    console.log(error);
-    res.status(500).json({ error: 'Hubo un error al obtener los últimos episodios' });
-  }
-  finally {
-    if (browser) {
-      await browser.close();
-    }
-  }
-}
-
 export const getAnimesByGenre = async (req, res) => {
   const browser = await puppeteer.launch({
     headless: 'new',
@@ -187,4 +188,43 @@ export const getAnimesByGenre = async (req, res) => {
       await browser.close();
     }
   }
-}
+};
+
+export const getAnimesByLetter = async (req, res) => {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+  try {
+    const letter = req.params.letter;
+    const pageNumber = req.query.page || 1;
+    const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+    await page.goto(`https://jkanime.net/letra/${letter}/${pageNumber}`);
+
+    const { data: animeList, morePages } = await page.evaluate(() => {
+      const animeItems = Array.from(document.querySelectorAll(".anime__page__content .col-lg-2.col-md-6.col-sm-6"));
+      const nextPage = document.querySelector("div.navigation a.nav-next");
+
+      const data = animeItems.map(anime => ({
+        title: anime.querySelector("h5 a").textContent,
+        id: anime.querySelector("a").href.split("/")[3],
+        poster: anime.querySelector("div.anime__item__pic").getAttribute("data-setbg")
+      }));
+
+      return { data, morePages: nextPage ? true : false };
+    });
+
+    res.json({ animeList, morePages });
+  }
+  catch (error) {
+    console.log(error);
+    res.status(500).json({ error: 'Hubo un error al obtener los animes' });
+  }
+  finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+};
